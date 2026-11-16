@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Codespace Chrome Launcher</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: system-ui, Segoe UI, sans-serif; background:#0d1117; color:#e6edf3; display:flex; justify-content:center; padding:48px 16px; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:28px; width:100%; max-width:460px; }
+  h1 { font-size:20px; margin:0 0 16px; }
+  label { display:block; font-size:13px; margin-bottom:6px; color:#8b949e; }
+  input { width:100%; box-sizing:border-box; padding:10px; border-radius:6px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
+  button { margin-top:16px; width:100%; padding:11px; border:0; border-radius:6px; background:#238636; color:#fff; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:default; }
+  #status { margin-top:16px; font-size:14px; min-height:20px; }
+  .err { color:#f85149; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Start Codespace &amp; open Chrome</h1>
+  <label for="token">GitHub Personal Access Token (needs the <code>codespace</code> scope)</label>
+  <input id="token" type="password" placeholder="ghp_... or github_pat_..." autocomplete="off">
+  <button id="go">Start &amp; open</button>
+  <div id="status"></div>
+</div>
+
+<script>
+const CODESPACE_NAME = "opulent-spoon-96qq54pqv559f9p7g";
+const API = "https://api.github.com/user/codespaces/" + CODESPACE_NAME;
+const statusEl = document.getElementById("status");
+const btn = document.getElementById("go");
+const tokenEl = document.getElementById("token");
+
+// Token is kept only in this tab's sessionStorage (cleared when the tab closes).
+tokenEl.value = sessionStorage.getItem("gh_pat") || "";
+
+function setStatus(msg, isErr) {
+  statusEl.textContent = msg;
+  statusEl.className = isErr ? "err" : "";
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function headers(token) {
+  return {
+    "Accept": "application/vnd.github+json",
+    "Authorization": "Bearer " + token,
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+}
+
+async function getState(token) {
+  const r = await fetch(API, { headers: headers(token) });
+  if (!r.ok) throw new Error("GET codespace failed: HTTP " + r.status);
+  return (await r.json()).state;
+}
+
+async function run() {
+  const token = tokenEl.value.trim();
+  if (!token) { setStatus("Enter your token first.", true); return; }
+  sessionStorage.setItem("gh_pat", token);
+  btn.disabled = true;
+  try {
+    setStatus("Checking Codespace…");
+    let state = await getState(token);
+
+    if (state !== "Available") {
+      setStatus("Starting Codespace…");
+      const r = await fetch(API + "/start", { method: "POST", headers: headers(token) });
+      if (!r.ok) throw new Error("Start failed: HTTP " + r.status);
+    }
+
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (state !== "Available") {
+      if (Date.now() > deadline) throw new Error("Timed out waiting for Available (last state: " + state + ")");
+      setStatus("State: " + state + " — waiting…");
+      await sleep(4000);
+      state = await getState(token);
+    }
+
+    setStatus("Available — opening Chrome…");
+    window.location.href = "https://" + CODESPACE_NAME + "-3001.app.github.dev";
+  } catch (e) {
+    setStatus(e.message, true);
+    btn.disabled = false;
+  }
+}
+btn.addEventListener("click", run);
+</script>
+</body>
+</html>

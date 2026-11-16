@@ -1,0 +1,18 @@
+{
+  "name": "Chrome in Codespace",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    }
+  },
+  "postStartCommand": "docker rm -f chrome >/dev/null 2>&1 || true; docker run -d --name chrome --restart unless-stopped --shm-size=1gb --security-opt seccomp=unconfined -e PUID=1000 -e PGID=1000 -e TZ=Etc/UTC -p 3001:3000 lscr.io/linuxserver/chrome:latest",
+  "forwardPorts": [3001],
+  "portsAttributes": {
+    "3001": {
+      "label": "Chrome",
+      "onAutoForward": "openBrowser",
+      "protocol": "http"
+    }
+  }
+}
